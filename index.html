@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>İlaç Sayım</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;600;700&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0d1117;--s1:#161b22;--s2:#21262d;--border:#30363d;
+  --green:#3fb950;--green-bg:rgba(63,185,80,.15);
+  --red:#f85149;--red-bg:rgba(248,81,73,.15);
+  --yellow:#e3b341;--yellow-bg:rgba(227,179,65,.15);
+  --blue:#58a6ff;--blue-bg:rgba(88,166,255,.12);
+  --text:#e6edf3;--muted:#8b949e;
+  --mono:'JetBrains Mono',monospace;--sans:'Outfit',sans-serif;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans)}
+
+/* ── SCREENS ── */
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;transition:opacity .25s,transform .25s}
+.screen.hidden{opacity:0;pointer-events:none;transform:translateY(20px)}
+
+/* ── HOME SCREEN ── */
+#homeScreen{background:var(--bg);overflow-y:auto;padding-bottom:24px}
+
+.top-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;background:var(--s1);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10
+}
+.app-title{font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.05em}
+.app-title span{color:var(--blue)}
+.badge{padding:3px 10px;border-radius:20px;font-size:10px;font-family:var(--mono);
+  font-weight:600;letter-spacing:.08em;border:1px solid}
+.badge.on{border-color:var(--green);color:var(--green);background:var(--green-bg)}
+.badge.off{border-color:var(--muted);color:var(--muted)}
+
+/* stats */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 16px}
+.stat{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px}
+.stat-val{font-family:var(--mono);font-size:26px;font-weight:700;line-height:1}
+.stat-val.blue{color:var(--blue)}.stat-val.green{color:var(--green)}
+.stat-val.red{color:var(--red)}.stat-val.yellow{color:var(--yellow)}
+.stat-lbl{font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase}
+
+/* progress */
+.prog-wrap{margin:0 16px 12px;background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px}
+.prog-row{display:flex;justify-content:space-between;margin-bottom:10px;font-size:12px;font-family:var(--mono)}
+.prog-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;transition:width .5s ease;width:0%}
+
+/* import */
+.section{margin:0 16px 12px}
+.sec-title{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;font-family:var(--mono)}
+
+.import-box{
+  border:1.5px dashed var(--border);border-radius:12px;
+  padding:18px;text-align:center;cursor:pointer;position:relative;
+  transition:border-color .2s,background .2s;background:var(--s1)
+}
+.import-box:hover,.import-box.over{border-color:var(--blue);background:var(--blue-bg)}
+.import-box input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.import-icon{font-size:26px;margin-bottom:6px}
+.import-main{font-size:13px;font-weight:600;margin-bottom:3px}
+.import-sub{font-size:11px;color:var(--muted)}
+.import-ok{margin-top:10px;padding:7px 12px;background:var(--green-bg);border:1px solid rgba(63,185,80,.3);
+  border-radius:8px;font-size:11px;font-family:var(--mono);color:var(--green);display:none;text-align:left}
+
+/* manual */
+.manual-input{
+  width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--border);
+  border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;
+  transition:border-color .2s
+}
+.manual-input:focus{border-color:var(--blue)}
+.manual-input::placeholder{color:var(--muted)}
+
+/* list */
+.list-header{display:flex;justify-content:space-between;align-items:center;
+  padding:10px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  background:var(--s1);margin-top:4px}
+.list-title{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-family:var(--mono)}
+.clear-btn{font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 8px;
+  border-radius:4px;transition:background .2s;font-family:var(--mono)}
+.clear-btn:hover{background:var(--red-bg)}
+
+.scanned-list{flex:1;overflow-y:auto;padding:6px 10px}
+.s-item{
+  display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;
+  margin-bottom:4px;border:1px solid transparent;animation:pop .25s ease
+}
+@keyframes pop{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+.s-item.found{background:var(--green-bg);border-color:rgba(63,185,80,.2)}
+.s-item.notfound{background:var(--red-bg);border-color:rgba(248,81,73,.2)}
+.s-item.duplicate{background:var(--yellow-bg);border-color:rgba(227,179,65,.2)}
+.s-icon{width:20px;height:20px;border-radius:5px;display:grid;place-items:center;
+  font-size:11px;font-weight:700;flex-shrink:0}
+.s-icon.found{background:var(--green);color:#000}
+.s-icon.notfound{background:var(--red);color:#fff}
+.s-icon.duplicate{background:var(--yellow);color:#000}
+.s-code{flex:1;font-family:var(--mono);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s-time{font-size:9px;color:var(--muted);font-family:var(--mono);flex-shrink:0}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;padding:36px 20px;color:var(--muted);text-align:center}
+.empty .ei{font-size:32px;opacity:.35}
+.empty p{font-size:12px;line-height:1.7}
+
+/* fab */
+.fab{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(135deg,#238636,#2ea043);
+  color:#fff;border:none;border-radius:28px;
+  padding:16px 36px;font-size:15px;font-weight:700;
+  font-family:var(--sans);cursor:pointer;
+  box-shadow:0 4px 24px rgba(35,134,54,.45);
+  display:flex;align-items:center;gap:10px;
+  transition:transform .15s,box-shadow .15s;
+  white-space:nowrap;z-index:20
+}
+.fab:active{transform:translateX(-50%) scale(.96);box-shadow:0 2px 12px rgba(35,134,54,.3)}
+
+/* ── SCAN SCREEN ── */
+#scanScreen{background:#000}
+
+#video{width:100%;height:100%;object-fit:cover;display:block}
+#scanCanvas{display:none}
+#overlayCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+
+.scan-top{
+  position:absolute;top:0;left:0;right:0;
+  background:linear-gradient(#000c,transparent);
+  padding:14px 16px 32px;z-index:5
+}
+.scan-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.back-btn{background:rgba(255,255,255,.15);border:none;color:#fff;
+  width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;
+  display:grid;place-items:center;backdrop-filter:blur(6px)}
+.scan-title{font-size:15px;font-weight:700;color:#fff;flex:1}
+
+.scan-stats{display:flex;gap:8px}
+.ss{padding:5px 12px;border-radius:20px;font-size:12px;font-family:var(--mono);
+  font-weight:600;backdrop-filter:blur(6px)}
+.ss.green{background:rgba(63,185,80,.25);color:#3fb950;border:1px solid rgba(63,185,80,.4)}
+.ss.red{background:rgba(248,81,73,.25);color:#f85149;border:1px solid rgba(248,81,73,.4)}
+.ss.yellow{background:rgba(227,179,65,.25);color:#e3b341;border:1px solid rgba(227,179,65,.4)}
+
+/* aim frame */
+.aim-frame{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-54%);
+  width:min(260px,72vw);height:min(260px,72vw);
+  pointer-events:none;z-index:4
+}
+.aim-corner{position:absolute;width:26px;height:26px;border-color:rgba(255,255,255,.8);border-style:solid}
+.aim-corner.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:3px 0 0 0}
+.aim-corner.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 3px 0 0}
+.aim-corner.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 3px 0}
+.aim-corner.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 3px}
+.aim-line{position:absolute;left:4px;right:4px;height:2px;
+  background:linear-gradient(90deg,transparent,var(--blue) 40%,var(--green) 60%,transparent);
+  animation:scan 2s ease-in-out infinite;top:0}
+@keyframes scan{0%{top:4px;opacity:1}50%{top:calc(100% - 6px);opacity:.8}100%{top:4px;opacity:1}}
+
+.aim-hint{
+  position:absolute;bottom:-32px;left:50%;transform:translateX(-50%);
+  font-size:11px;color:rgba(255,255,255,.6);white-space:nowrap;
+  background:rgba(0,0,0,.5);padding:3px 10px;border-radius:10px;backdrop-filter:blur(4px)
+}
+
+/* result toast */
+.result-toast{
+  position:absolute;left:16px;right:16px;
+  border-radius:12px;padding:12px 16px;
+  transform:translateY(120px);transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  z-index:10;display:flex;align-items:center;gap:12px
+}
+.result-toast.show{transform:translateY(0)}
+.result-toast.found{background:var(--green);color:#000}
+.result-toast.notfound{background:var(--red);color:#fff}
+.result-toast.duplicate{background:var(--yellow);color:#000}
+.toast-icon{font-size:20px}
+.toast-text{flex:1}
+.toast-label{font-size:13px;font-weight:700;margin-bottom:2px}
+.toast-code{font-size:10px;font-family:var(--mono);opacity:.8;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* scan bottom controls */
+.scan-bottom{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(transparent,#000e);
+  padding:32px 16px 28px;display:flex;gap:10px;z-index:5
+}
+.scan-btn{
+  flex:1;padding:12px;border-radius:10px;
+  border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);
+  color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);
+  backdrop-filter:blur(8px);transition:background .15s
+}
+.scan-btn:active{background:rgba(255,255,255,.25)}
+
+/* permission overlay */
+.perm-overlay{
+  position:absolute;inset:0;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:16px;padding:32px;text-align:center;z-index:20
+}
+.perm-icon{font-size:52px}
+.perm-title{font-size:18px;font-weight:700}
+.perm-text{font-size:13px;color:var(--muted);line-height:1.7}
+.perm-btn{
+  background:var(--blue);color:#fff;border:none;border-radius:12px;
+  padding:14px 32px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)
+}
+
+/* export row */
+.export-row{display:flex;gap:8px;padding:10px 16px 0}
+.exp-btn{
+  flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);
+  background:var(--s2);color:var(--text);font-size:11px;font-weight:600;
+  cursor:pointer;font-family:var(--sans);transition:border-color .15s
+}
+.exp-btn:hover{border-color:var(--blue)}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- ══ HOME SCREEN ══ -->
+<div class="screen" id="homeScreen">
+
+  <div class="top-bar">
+    <div class="app-title">💊 İlaç <span>Sayım</span></div>
+    <div class="badge off" id="statusBadge">LİSTE YOK</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="stat-val blue" id="stTotal">0</div><div class="stat-lbl">Toplam Liste</div></div>
+    <div class="stat"><div class="stat-val green" id="stFound">0</div><div class="stat-lbl">Bulunan</div></div>
+    <div class="stat"><div class="stat-val red" id="stMissing">0</div><div class="stat-lbl">Listede Yok</div></div>
+    <div class="stat"><div class="stat-val yellow" id="stDupe">0</div><div class="stat-lbl">Tekrar</div></div>
+  </div>
+
+  <!-- Progress -->
+  <div class="prog-wrap">
+    <div class="prog-row">
+      <span style="color:var(--muted);font-size:11px">İLERLEME</span>
+      <span id="progText" style="font-size:11px">0 / 0</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+  </div>
+
+  <!-- Import -->
+  <div class="section">
+    <div class="sec-title">Karekod Listesi</div>
+    <div class="import-box" id="importBox">
+      <input type="file" accept=".txt,.csv" id="fileInput">
+      <div class="import-icon">📂</div>
+      <div class="import-main">TXT veya CSV Yükle</div>
+      <div class="import-sub">Her satır bir karekod</div>
+      <div class="import-ok" id="importOk"></div>
+    </div>
+  </div>
+
+  <!-- Manual -->
+  <div class="section">
+    <div class="sec-title">Manuel Giriş</div>
+    <input type="text" class="manual-input" id="manualInput"
+      placeholder="Karekod yaz → Enter">
+  </div>
+
+  <!-- Export -->
+  <div class="export-row">
+    <button class="exp-btn" onclick="exportCSV()">📋 CSV İndir</button>
+    <button class="exp-btn" onclick="exportHTML()">📊 HTML Rapor</button>
+    <button class="exp-btn" onclick="clearAll()" style="color:var(--red)">🗑 Temizle</button>
+  </div>
+
+  <!-- List -->
+  <div class="list-header">
+    <span class="list-title">Taranan Kodlar</span>
+    <button class="clear-btn" onclick="clearScanned()">Temizle</button>
+  </div>
+
+  <div class="scanned-list" id="scannedList">
+    <div class="empty">
+      <div class="ei">🔍</div>
+      <p>Henüz kod taranmadı.<br>Yeşil butona basın.</p>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <button class="fab" onclick="openScan()">📷&nbsp;&nbsp;TARAMAYA BAŞLA</button>
+
+</div>
+
+<!-- ══ SCAN SCREEN ══ -->
+<div class="screen hidden" id="scanScreen">
+
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="scanCanvas"></canvas>
+  <canvas id="overlayCanvas" id="overlayCanvas"></canvas>
+
+  <!-- Top -->
+  <div class="scan-top">
+    <div class="scan-toolbar">
+      <button class="back-btn" onclick="closeScan()">←</button>
+      <div class="scan-title">Karekod Tara</div>
+    </div>
+    <div class="scan-stats">
+      <div class="ss green">✓ <span id="ssFound">0</span></div>
+      <div class="ss red">✗ <span id="ssMissing">0</span></div>
+      <div class="ss yellow">⚠ <span id="ssDupe">0</span></div>
+    </div>
+  </div>
+
+  <!-- Aim frame -->
+  <div class="aim-frame">
+    <div class="aim-corner tl"></div>
+    <div class="aim-corner tr"></div>
+    <div class="aim-corner br"></div>
+    <div class="aim-corner bl"></div>
+    <div class="aim-line"></div>
+    <div class="aim-hint">Karekodu çerçeve içine getirin</div>
+  </div>
+
+  <!-- Result toast -->
+  <div class="result-toast" id="resultToast" style="bottom:100px">
+    <div class="toast-icon" id="toastIcon">✓</div>
+    <div class="toast-text">
+      <div class="toast-label" id="toastLabel">BULUNDU</div>
+      <div class="toast-code" id="toastCode"></div>
+    </div>
+  </div>
+
+  <!-- Permission overlay -->
+  <div class="perm-overlay hidden" id="permOverlay">
+    <div class="perm-icon">📷</div>
+    <div class="perm-title">Kamera İzni Gerekli</div>
+    <div class="perm-text">Karekod taramak için kameraya<br>erişim izni verin.</div>
+    <button class="perm-btn" onclick="requestCamera()">İzin Ver</button>
+  </div>
+
+  <!-- Bottom controls -->
+  <div class="scan-bottom">
+    <button class="scan-btn" id="flashBtn" onclick="toggleFlash()">💡 Flaş</button>
+    <button class="scan-btn" onclick="flipCamera()">🔄 Kamera Çevir</button>
+    <button class="scan-btn" onclick="closeScan()" style="color:#f85149">← Geri</button>
+  </div>
+
+</div>
+
+<script>
+// ── STATE ──
+const S = {
+  imported: new Set(),
+  scanned: new Map(),  // code -> {status,time,count}
+  notFound: [],
+  cameraStream: null,
+  scanning: false,
+  facingMode: 'environment',
+  flashOn: false,
+  scanTimer: null,
+  lastCode: '',
+  lastTime: 0,
+  COOLDOWN: 1400
+};
+
+// ── AUDIO ──
+let actx = null;
+function beep(f,d,v=0.3){
+  try{
+    if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.connect(g); g.connect(actx.destination);
+    o.frequency.value=f; o.type='square';
+    g.gain.setValueAtTime(v,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+d);
+    o.start(); o.stop(actx.currentTime+d);
+  }catch(e){}
+}
+const soundOK  = ()=>{ beep(880,.1); setTimeout(()=>beep(1320,.08),90) };
+const soundBad = ()=>{ beep(220,.35,.4,'sawtooth') };
+const soundDup = ()=>{ beep(660,.07,.2) };
+
+// ── FILE IMPORT ──
+document.getElementById('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    const lines = ev.target.result.split(/[\r\n,;]+/).map(l=>l.trim()).filter(Boolean);
+    S.imported.clear();
+    lines.forEach(l => S.imported.add(l));
+    document.getElementById('importOk').style.display = 'block';
+    document.getElementById('importOk').textContent = `✅ ${S.imported.size} karekod yüklendi`;
+    document.getElementById('statusBadge').textContent = `${S.imported.size} KOD`;
+    document.getElementById('statusBadge').className = 'badge on';
+    updateStats();
+    e.target.value = '';
+  };
+  r.readAsText(f);
+});
+
+// drag-drop
+const ib = document.getElementById('importBox');
+ib.addEventListener('dragover', e=>{e.preventDefault();ib.classList.add('over')});
+ib.addEventListener('dragleave', ()=>ib.classList.remove('over'));
+ib.addEventListener('drop', e=>{
+  e.preventDefault(); ib.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if(f) document.getElementById('fileInput').files = e.dataTransfer.files;
+});
+
+// manual
+document.getElementById('manualInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){
+    const v = e.target.value.trim();
+    if(v){ processCode(v); e.target.value=''; }
+  }
+});
+
+// ── CAMERA ──
+const video = document.getElementById('video');
+const canvas = document.getElementById('scanCanvas');
+const overlay = document.getElementById('overlayCanvas');
+const ctx = canvas.getContext('2d',{willReadFrequently:true});
+const octx = overlay.getContext('2d');
+
+async function openScan(){
+  document.getElementById('homeScreen').classList.add('hidden');
+  document.getElementById('scanScreen').classList.remove('hidden');
+  await startCamera();
+}
+
+function closeScan(){
+  stopCamera();
+  document.getElementById('scanScreen').classList.add('hidden');
+  document.getElementById('homeScreen').classList.remove('hidden');
+  updateStats();
+}
+
+async function startCamera(){
+  try{
+    if(S.cameraStream){ S.cameraStream.getTracks().forEach(t=>t.stop()); S.cameraStream=null; }
+    S.cameraStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:S.facingMode, width:{ideal:1280}, height:{ideal:720} }
+    });
+    video.srcObject = S.cameraStream;
+    S.scanning = true;
+    document.getElementById('permOverlay').classList.add('hidden');
+    video.onloadedmetadata = ()=>{
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      overlay.width = video.videoWidth;
+      overlay.height = video.videoHeight;
+      scheduleFrame();
+    };
+  }catch(err){
+    console.error(err);
+    if(err.name==='NotAllowedError' || err.name==='PermissionDeniedError'){
+      document.getElementById('permOverlay').classList.remove('hidden');
+    }
+  }
+}
+
+function stopCamera(){
+  S.scanning = false;
+  cancelAnimationFrame(S.rafId);
+  if(S.cameraStream){ S.cameraStream.getTracks().forEach(t=>t.stop()); S.cameraStream=null; }
+}
+
+async function flipCamera(){
+  S.facingMode = S.facingMode==='environment' ? 'user' : 'environment';
+  await startCamera();
+}
+
+async function toggleFlash(){
+  if(!S.cameraStream) return;
+  try{
+    const track = S.cameraStream.getVideoTracks()[0];
+    S.flashOn = !S.flashOn;
+    await track.applyConstraints({advanced:[{torch:S.flashOn}]});
+    document.getElementById('flashBtn').textContent = S.flashOn ? '💡 Flaş Kapat' : '💡 Flaş';
+  }catch(e){ alert('Bu cihazda flaş desteklenmiyor'); }
+}
+
+async function requestCamera(){ await startCamera(); }
+
+// ── SCAN LOOP ──
+let rafId = null;
+let lastFrameTime = 0;
+const FRAME_INTERVAL = 180; // ms
+
+function scheduleFrame(){
+  if(!S.scanning) return;
+  rafId = requestAnimationFrame(ts=>{
+    if(ts - lastFrameTime >= FRAME_INTERVAL){
+      lastFrameTime = ts;
+      scanFrame();
+    }
+    scheduleFrame();
+  });
+}
+
+function scanFrame(){
+  if(!S.scanning || video.readyState < 2) return;
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  overlay.width = canvas.width;
+  overlay.height = canvas.height;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+  octx.clearRect(0,0,overlay.width,overlay.height);
+
+  try{
+    const result = jsQR(imgData.data, imgData.width, imgData.height, {inversionAttempts:'dontInvert'});
+    if(result){
+      const code = result.data.trim();
+      drawQRBox(result.location, code);
+      const now = Date.now();
+      if(code !== S.lastCode || now - S.lastTime > S.COOLDOWN){
+        S.lastCode = code; S.lastTime = now;
+        processCode(code);
+      }
+    }
+  }catch(e){}
+}
+
+function drawQRBox(loc, code){
+  const isDupe = S.scanned.has(code);
+  const status = isDupe ? 'duplicate' : (S.imported.size===0 ? 'notfound' : (S.imported.has(code) ? 'found' : 'notfound'));
+  const colors = {found:'#3fb950', notfound:'#f85149', duplicate:'#e3b341'};
+  const c = colors[status];
+
+  octx.strokeStyle = c;
+  octx.lineWidth = 3;
+  octx.shadowColor = c;
+  octx.shadowBlur = 14;
+  octx.beginPath();
+  const p = [loc.topLeftCorner,loc.topRightCorner,loc.bottomRightCorner,loc.bottomLeftCorner];
+  octx.moveTo(p[0].x,p[0].y);
+  p.forEach(pt=>octx.lineTo(pt.x,pt.y));
+  octx.closePath(); octx.stroke();
+  octx.shadowBlur = 0;
+
+  // corner dots
+  p.forEach(pt=>{ octx.fillStyle=c; octx.beginPath(); octx.arc(pt.x,pt.y,5,0,Math.PI*2); octx.fill(); });
+}
+
+// ── PROCESS CODE ──
+function processCode(code){
+  if(!code) return;
+  const isDupe = S.scanned.has(code);
+  let status;
+
+  if(isDupe){
+    const e = S.scanned.get(code); e.count++;
+    soundDup();
+    showToast('duplicate','⚠','TEKRAR TARAMA',code);
+    updateScanStats();
+    return;
+  }
+
+  status = (S.imported.size===0) ? 'notfound' : (S.imported.has(code) ? 'found' : 'notfound');
+  const time = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  S.scanned.set(code, {status,time,count:1});
+  if(status==='notfound') S.notFound.push({code,time});
+
+  if(status==='found'){ soundOK(); showToast('found','✓','BULUNDU',code); vibrate(80); }
+  else { soundBad(); showToast('notfound','✗','LİSTEDE YOK',code); vibrate([100,50,100]); }
+
+  updateScanStats();
+  addToList(code,status,time);
+}
+
+// ── TOAST ──
+let toastTimer = null;
+function showToast(type, icon, label, code){
+  const t = document.getElementById('resultToast');
+  t.className = `result-toast show ${type}`;
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastLabel').textContent = label;
+  document.getElementById('toastCode').textContent = code.length>42 ? code.slice(0,40)+'…' : code;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.classList.remove('show'); }, 1800);
+}
+
+function vibrate(pattern){
+  try{ navigator.vibrate && navigator.vibrate(pattern); }catch(e){}
+}
+
+// ── UI ──
+function updateStats(){
+  let f=0,m=0,d=0;
+  S.scanned.forEach(v=>{ if(v.status==='found')f++; else if(v.status==='notfound')m++; if(v.count>1)d+=(v.count-1); });
+  document.getElementById('stTotal').textContent = S.imported.size;
+  document.getElementById('stFound').textContent = f;
+  document.getElementById('stMissing').textContent = m;
+  document.getElementById('stDupe').textContent = d;
+  const pct = S.imported.size>0 ? Math.round(f/S.imported.size*100) : 0;
+  document.getElementById('progFill').style.width = pct+'%';
+  document.getElementById('progText').textContent = `${f} / ${S.imported.size}  (%${pct})`;
+}
+
+function updateScanStats(){
+  let f=0,m=0,d=0;
+  S.scanned.forEach(v=>{ if(v.status==='found')f++; else if(v.status==='notfound')m++; if(v.count>1)d+=(v.count-1); });
+  document.getElementById('ssFound').textContent = f;
+  document.getElementById('ssMissing').textContent = m;
+  document.getElementById('ssDupe').textContent = d;
+}
+
+function addToList(code,status,time){
+  const list = document.getElementById('scannedList');
+  const empty = list.querySelector('.empty');
+  if(empty) empty.remove();
+  const icons = {found:'✓',notfound:'✗',duplicate:'!'};
+  const div = document.createElement('div');
+  div.className = `s-item ${status}`;
+  div.innerHTML = `
+    <div class="s-icon ${status}">${icons[status]||'?'}</div>
+    <div class="s-code" title="${code}">${code.length>36?code.slice(0,34)+'…':code}</div>
+    <div class="s-time">${time}</div>`;
+  list.insertBefore(div, list.firstChild);
+  const items = list.querySelectorAll('.s-item');
+  if(items.length>200) items[items.length-1].remove();
+}
+
+function clearScanned(){
+  if(!confirm('Taranan kodlar silinsin mi?')) return;
+  S.scanned.clear(); S.notFound=[];
+  document.getElementById('scannedList').innerHTML =
+    '<div class="empty"><div class="ei">🔍</div><p>Henüz kod taranmadı.</p></div>';
+  updateStats();
+}
+
+function clearAll(){
+  if(!confirm('Liste ve tüm taranan kodlar silinecek!')) return;
+  S.imported.clear(); S.scanned.clear(); S.notFound=[];
+  document.getElementById('importOk').style.display='none';
+  document.getElementById('statusBadge').textContent='LİSTE YOK';
+  document.getElementById('statusBadge').className='badge off';
+  document.getElementById('scannedList').innerHTML =
+    '<div class="empty"><div class="ei">🔍</div><p>Henüz kod taranmadı.</p></div>';
+  updateStats();
+}
+
+// ── EXPORT ──
+function exportCSV(){
+  if(S.scanned.size===0){alert('Taranan kod yok!');return;}
+  let csv = '\uFEFFKarekod,Durum,Saat,Tekrar\n';
+  S.scanned.forEach((v,k)=>{
+    const s = v.status==='found'?'Bulundu':v.status==='notfound'?'Listede Yok':'Tekrar';
+    csv += `"${k}","${s}","${v.time}",${v.count}\n`;
+  });
+  dl(new Blob([csv],{type:'text/csv;charset=utf-8'}), `sayim_${ts()}.csv`);
+}
+
+function exportHTML(){
+  if(S.scanned.size===0){alert('Taranan kod yok!');return;}
+  let rows='';
+  S.scanned.forEach((v,k)=>{
+    const bg=v.status==='found'?'#e8f5e9':v.status==='notfound'?'#ffebee':'#fff8e1';
+    const clr=v.status==='found'?'#2e7d32':v.status==='notfound'?'#c62828':'#f57f17';
+    const lbl=v.status==='found'?'✓ BULUNDU':v.status==='notfound'?'✗ LİSTEDE YOK':'⚠ TEKRAR';
+    rows+=`<tr style="background:${bg}"><td>${k}</td><td style="color:${clr};font-weight:600">${lbl}</td><td>${v.time}</td><td>${v.count}</td></tr>`;
+  });
+  let f=0,m=0; S.scanned.forEach(v=>{if(v.status==='found')f++;else if(v.status==='notfound')m++;});
+  const html=`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Sayım Raporu</title>
+<style>body{font-family:Arial,sans-serif;padding:20px;background:#f5f5f5}h1{color:#1a237e}
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+.sc{background:#fff;padding:12px 18px;border-radius:8px;border-left:4px solid #2196f3}
+.sv{font-size:26px;font-weight:700}.sl{font-size:11px;color:#666}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden}
+th{background:#1a237e;color:#fff;padding:8px 10px;text-align:left;font-size:12px}
+td{padding:7px 10px;font-size:12px;font-family:monospace}
+</style></head><body>
+<h1>💊 İlaç Stok Sayım Raporu</h1>
+<p style="color:#666;font-size:12px">Tarih: ${new Date().toLocaleString('tr-TR')}</p>
+<div class="stats">
+<div class="sc"><div class="sv" style="color:#1565c0">${S.imported.size}</div><div class="sl">TOPLAM LİSTE</div></div>
+<div class="sc"><div class="sv" style="color:#2e7d32">${f}</div><div class="sl">BULUNAN</div></div>
+<div class="sc"><div class="sv" style="color:#c62828">${m}</div><div class="sl">LİSTEDE YOK</div></div>
+</div>
+<table><thead><tr><th>Karekod</th><th>Durum</th><th>Saat</th><th>Tekrar</th></tr></thead>
+<tbody>${rows}</tbody></table></body></html>`;
+  dl(new Blob([html],{type:'text/html;charset=utf-8'}), `sayim_raporu_${ts()}.html`);
+}
+
+function dl(blob, name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); }
+function ts(){ return new Date().toISOString().slice(0,16).replace(/[-:T]/g,''); }
+</script>
+</body>
+</html>
