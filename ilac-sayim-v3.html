@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ilac Sayim</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3;overflow-x:hidden}
+button{cursor:pointer;font-family:Arial,sans-serif}
+#homeScreen{min-height:100vh;display:flex;flex-direction:column;padding-bottom:80px}
+#scanScreen{display:none;position:fixed;inset:0;background:#000;z-index:100}
+.topbar{background:#161b22;border-bottom:1px solid #30363d;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
+.topbar h1{font-size:16px;font-weight:700}
+.topbar h1 span{color:#58a6ff}
+.badge{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid #8b949e;color:#8b949e}
+.badge.on{border-color:#3fb950;color:#3fb950;background:rgba(63,185,80,0.1)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 16px}
+.stat{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px}
+.sv{font-size:26px;font-weight:700}
+.sv.blue{color:#58a6ff}.sv.green{color:#3fb950}.sv.red{color:#f85149}.sv.yellow{color:#e3b341}
+.sl{font-size:10px;color:#8b949e;margin-top:4px;text-transform:uppercase}
+.prog-box{margin:0 16px 12px;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px}
+.prog-row{display:flex;justify-content:space-between;margin-bottom:8px;font-size:11px;color:#8b949e}
+.prog-track{height:8px;background:#30363d;border-radius:4px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,#58a6ff,#3fb950);border-radius:4px;transition:width 0.4s;width:0%}
+.section{margin:0 16px 12px}
+.sec-lbl{font-size:10px;color:#8b949e;text-transform:uppercase;margin-bottom:6px}
+.import-box{border:1.5px dashed #30363d;border-radius:10px;padding:18px;text-align:center;cursor:pointer;position:relative;background:#161b22}
+.import-box input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.import-main{font-size:14px;font-weight:600;margin-bottom:4px}
+.import-sub{font-size:11px;color:#8b949e}
+.import-ok{margin-top:10px;padding:8px 12px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:8px;font-size:12px;color:#3fb950;display:none}
+.manual-inp{width:100%;padding:12px 14px;background:#21262d;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:13px;outline:none}
+.manual-inp:focus{border-color:#58a6ff}
+.manual-inp::placeholder{color:#8b949e}
+.export-row{display:flex;gap:8px;padding:0 16px 12px}
+.ebtn{flex:1;padding:10px 6px;border-radius:8px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:12px;font-weight:600}
+.list-hdr{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid #30363d;border-bottom:1px solid #30363d;background:#161b22}
+.list-title{font-size:10px;color:#8b949e;text-transform:uppercase}
+.clr-btn{font-size:11px;color:#f85149;background:none;border:none;padding:2px 8px}
+.scan-items{padding:8px 10px}
+.sitem{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;margin-bottom:5px;border:1px solid transparent;animation:pop 0.25s ease}
+@keyframes pop{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+.sitem.found{background:rgba(63,185,80,0.1);border-color:rgba(63,185,80,0.2)}
+.sitem.notfound{background:rgba(248,81,73,0.1);border-color:rgba(248,81,73,0.2)}
+.sitem.duplicate{background:rgba(227,179,65,0.1);border-color:rgba(227,179,65,0.2)}
+.sico{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.sico.found{background:#3fb950;color:#000}.sico.notfound{background:#f85149;color:#fff}.sico.duplicate{background:#e3b341;color:#000}
+.scode{flex:1;font-size:11px;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stime{font-size:10px;color:#8b949e;flex-shrink:0}
+.empty-msg{padding:40px 20px;text-align:center;color:#8b949e;font-size:13px;line-height:1.8}
+.fab{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#238636;color:#fff;border:none;border-radius:30px;padding:16px 36px;font-size:15px;font-weight:700;box-shadow:0 4px 20px rgba(35,134,54,0.5);white-space:nowrap;z-index:50}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#scanCanvas{display:none}
+#overlayCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.scan-top{position:absolute;top:0;left:0;right:0;z-index:10;background:linear-gradient(rgba(0,0,0,0.75),transparent);padding:16px 16px 40px}
+.scan-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.back-btn{background:rgba(255,255,255,0.2);border:none;color:#fff;width:40px;height:40px;border-radius:50%;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.scan-title{color:#fff;font-size:16px;font-weight:700;flex:1}
+.scan-stats{display:flex;gap:8px}
+.sstat{padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;border:1px solid}
+.sstat.g{background:rgba(63,185,80,0.2);color:#3fb950;border-color:rgba(63,185,80,0.5)}
+.sstat.r{background:rgba(248,81,73,0.2);color:#f85149;border-color:rgba(248,81,73,0.5)}
+.sstat.y{background:rgba(227,179,65,0.2);color:#e3b341;border-color:rgba(227,179,65,0.5)}
+.aim{position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);width:260px;height:260px;pointer-events:none;z-index:5}
+.ac{position:absolute;width:28px;height:28px;border-color:rgba(255,255,255,0.9);border-style:solid}
+.ac.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:3px 0 0 0}
+.ac.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 3px 0 0}
+.ac.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 3px 0}
+.ac.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 3px}
+.scanline{position:absolute;left:4px;right:4px;height:2px;background:linear-gradient(90deg,transparent,#58a6ff,#3fb950,transparent);animation:sl 2s ease-in-out infinite}
+@keyframes sl{0%,100%{top:4px}50%{top:calc(100% - 6px)}}
+.aim-hint{position:absolute;bottom:-34px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.7);font-size:12px;white-space:nowrap;background:rgba(0,0,0,0.55);padding:4px 12px;border-radius:20px}
+.toast{position:absolute;left:16px;right:16px;bottom:100px;border-radius:14px;padding:14px 18px;z-index:10;opacity:0;transform:translateY(60px);transition:opacity 0.3s,transform 0.3s}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.found{background:#3fb950;color:#000}.toast.notfound{background:#f85149;color:#fff}.toast.duplicate{background:#e3b341;color:#000}
+.toast-lbl{font-size:14px;font-weight:700}
+.toast-code{font-size:11px;font-family:monospace;opacity:0.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#permScreen{position:absolute;inset:0;background:#0d1117;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:40px;text-align:center}
+#permScreen.hidden{display:none}
+#permScreen h2{font-size:20px;font-weight:700}
+#permScreen p{font-size:14px;color:#8b949e;line-height:1.7}
+.perm-btn{background:#238636;color:#fff;border:none;border-radius:12px;padding:16px 36px;font-size:16px;font-weight:700;width:100%;max-width:280px}
+#camError{position:absolute;inset:0;background:#0d1117;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px;text-align:center}
+#camError h2{font-size:18px;color:#f85149}
+#camError p{font-size:14px;color:#8b949e;line-height:1.7}
+.scan-bot{position:absolute;bottom:0;left:0;right:0;z-index:10;background:linear-gradient(transparent,rgba(0,0,0,0.8));padding:30px 16px 24px;display:flex;gap:10px}
+.sbtn{flex:1;padding:14px 8px;border-radius:12px;border:1px solid rgba(255,255,255,0.25);background:rgba(0,0,0,0.4);color:#fff;font-size:13px;font-weight:600}
+</style>
+</head>
+<body>
+<div id="homeScreen">
+  <div class="topbar">
+    <h1>Ilac <span>Sayim</span></h1>
+    <div class="badge" id="statusBadge">LISTE YOK</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="sv blue" id="stTotal">0</div><div class="sl">Toplam Liste</div></div>
+    <div class="stat"><div class="sv green" id="stFound">0</div><div class="sl">Bulunan</div></div>
+    <div class="stat"><div class="sv red" id="stMissing">0</div><div class="sl">Listede Yok</div></div>
+    <div class="stat"><div class="sv yellow" id="stDupe">0</div><div class="sl">Tekrar</div></div>
+  </div>
+  <div class="prog-box">
+    <div class="prog-row"><span>ILERLEME</span><span id="progText">0 / 0</span></div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+  </div>
+  <div class="section">
+    <div class="sec-lbl">Karekod Listesi</div>
+    <div class="import-box">
+      <input type="file" accept=".txt,.csv" id="fileInput">
+      <div style="font-size:28px;margin-bottom:8px">&#128194;</div>
+      <div class="import-main">TXT veya CSV Yukle</div>
+      <div class="import-sub">Her satir bir karekod</div>
+      <div class="import-ok" id="importOk"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="sec-lbl">Manuel Giris</div>
+    <input type="text" class="manual-inp" id="manualInput" placeholder="Karekod yaz + Enter">
+  </div>
+  <div class="export-row">
+    <button class="ebtn" onclick="exportCSV()">CSV Indir</button>
+    <button class="ebtn" onclick="exportHTML()">HTML Rapor</button>
+    <button class="ebtn" onclick="clearAll()" style="color:#f85149">Sifirla</button>
+  </div>
+  <div class="list-hdr">
+    <span class="list-title">Taranan Kodlar</span>
+    <button class="clr-btn" onclick="clearScanned()">Temizle</button>
+  </div>
+  <div class="scan-items" id="scanItems">
+    <div class="empty-msg">Henuz kod taranmadi.<br>Asagidaki butona basin.</div>
+  </div>
+  <button class="fab" onclick="openScan()">TARAMAYA BASLA</button>
+</div>
+<div id="scanScreen">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="scanCanvas"></canvas>
+  <canvas id="overlayCanvas"></canvas>
+  <div id="permScreen">
+    <div style="font-size:60px">&#128247;</div>
+    <h2>Kamera Izni Gerekli</h2>
+    <p>Kamera iznine izin verin.</p>
+    <button class="perm-btn" onclick="requestCam()">Kamera Iznini Ver</button>
+  </div>
+  <div id="camError">
+    <div style="font-size:48px">&#9888;</div>
+    <h2>Kamera Acilmadi</h2>
+    <p id="camErrorMsg"></p>
+    <button class="sbtn" onclick="requestCam()" style="max-width:240px;padding:14px;margin-top:8px">Tekrar Dene</button>
+  </div>
+  <div class="scan-top">
+    <div class="scan-toolbar">
+      <button class="back-btn" onclick="closeScan()">&#8592;</button>
+      <div class="scan-title">Karekod Tara</div>
+    </div>
+    <div class="scan-stats">
+      <div class="sstat g">OK <span id="ssFound">0</span></div>
+      <div class="sstat r">YOK <span id="ssMissing">0</span></div>
+      <div class="sstat y">2x <span id="ssDupe">0</span></div>
+    </div>
+  </div>
+  <div class="aim">
+    <div class="ac tl"></div><div class="ac tr"></div>
+    <div class="ac br"></div><div class="ac bl"></div>
+    <div class="scanline"></div>
+    <div class="aim-hint">Karekodu cerceve icine getirin</div>
+  </div>
+  <div class="toast" id="toast">
+    <div class="toast-lbl" id="toastLbl">BULUNDU</div>
+    <div class="toast-code" id="toastCode"></div>
+  </div>
+  <div class="scan-bot">
+    <button class="sbtn" id="flashBtn" onclick="toggleFlash()">Flas Ac</button>
+    <button class="sbtn" onclick="flipCam()">Kamera Cevir</button>
+    <button class="sbtn" onclick="closeScan()" style="color:#f85149">Geri Don</button>
+  </div>
+</div>
+<script>
+var imported=new Set(),scanned=new Map(),stream=null,scanning=false,facing='environment',flashOn=false,lastCode='',lastTime=0,COOLDOWN=1500,rafId=null,lastFrame=0;
+var video=document.getElementById('video'),canvas=document.getElementById('scanCanvas'),overlay=document.getElementById('overlayCanvas');
+var ctx=canvas.getContext('2d',{willReadFrequently:true}),octx=overlay.getContext('2d');
+document.getElementById('fileInput').addEventListener('change',function(e){
+  var f=e.target.files[0];if(!f)return;
+  var r=new FileReader();
+  r.onload=function(ev){
+    var lines=ev.target.result.split(/[\r\n,;\t]+/).map(function(l){return l.trim();}).filter(function(l){return l.length>0;});
+    imported.clear();lines.forEach(function(l){imported.add(l);});
+    var ok=document.getElementById('importOk');ok.style.display='block';ok.textContent=imported.size+' karekod yuklendi';
+    var b=document.getElementById('statusBadge');b.textContent=imported.size+' KOD';b.className='badge on';
+    updateStats();
+  };
+  r.readAsText(f,'UTF-8');e.target.value='';
+});
+document.getElementById('manualInput').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){var v=e.target.value.trim();if(v){processCode(v);e.target.value='';}}
+});
+function openScan(){
+  document.getElementById('homeScreen').style.display='none';
+  document.getElementById('scanScreen').style.display='block';
+  document.getElementById('permScreen').classList.remove('hidden');
+  document.getElementById('camError').style.display='none';
+  requestCam();
+}
+function closeScan(){
+  stopCam();
+  document.getElementById('scanScreen').style.display='none';
+  document.getElementById('homeScreen').style.display='flex';
+  document.getElementById('homeScreen').style.flexDirection='column';
+  updateStats();
+}
+function requestCam(){
+  document.getElementById('permScreen').classList.add('hidden');
+  document.getElementById('camError').style.display='none';
+  if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720}}})
+  .then(function(s){
+    stream=s;video.srcObject=s;scanning=true;
+    video.onloadedmetadata=function(){
+      video.play().then(function(){
+        canvas.width=video.videoWidth||640;canvas.height=video.videoHeight||480;
+        overlay.width=canvas.width;overlay.height=canvas.height;
+        runLoop();
+      }).catch(function(err){showErr('Video hatasi: '+err.message);});
+    };
+  })
+  .catch(function(err){
+    if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError'){
+      document.getElementById('permScreen').classList.remove('hidden');
+    }else if(err.name==='NotFoundError'){showErr('Kamera bulunamadi.');}
+    else if(err.name==='NotReadableError'){showErr('Kamera baska bir uygulama tarafindan kullaniliyor.');}
+    else{showErr(err.name+': '+err.message);}
+  });
+}
+function showErr(msg){document.getElementById('camError').style.display='flex';document.getElementById('camErrorMsg').textContent=msg;}
+function stopCam(){
+  scanning=false;if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+  if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}
+  video.srcObject=null;
+}
+function flipCam(){facing=facing==='environment'?'user':'environment';requestCam();}
+function toggleFlash(){
+  if(!stream)return;var track=stream.getVideoTracks()[0];if(!track)return;
+  flashOn=!flashOn;
+  track.applyConstraints({advanced:[{torch:flashOn}]}).catch(function(){flashOn=false;alert('Flas desteklenmiyor.');});
+  document.getElementById('flashBtn').textContent=flashOn?'Flas Kapat':'Flas Ac';
+}
+function runLoop(){
+  if(!scanning)return;
+  rafId=requestAnimationFrame(function(ts){if(ts-lastFrame>=200){lastFrame=ts;scanFrame();}runLoop();});
+}
+function scanFrame(){
+  if(!scanning||!video.srcObject||video.readyState<2)return;
+  var w=video.videoWidth||640,h=video.videoHeight||480;
+  canvas.width=w;canvas.height=h;overlay.width=w;overlay.height=h;
+  ctx.drawImage(video,0,0,w,h);octx.clearRect(0,0,w,h);
+  var imgData=ctx.getImageData(0,0,w,h);
+  try{
+    var result=jsQR(imgData.data,imgData.width,imgData.height,{inversionAttempts:'attemptBoth'});
+    if(result&&result.data){
+      var code=result.data.trim();drawBox(result.location,code);
+      var now=Date.now();
+      if(code!==lastCode||now-lastTime>COOLDOWN){lastCode=code;lastTime=now;processCode(code);}
+    }
+  }catch(e){}
+}
+function drawBox(loc,code){
+  var isDupe=scanned.has(code);
+  var status=isDupe?'duplicate':(imported.size===0?'notfound':(imported.has(code)?'found':'notfound'));
+  var colors={found:'#3fb950',notfound:'#f85149',duplicate:'#e3b341'};var c=colors[status];
+  octx.strokeStyle=c;octx.lineWidth=4;octx.shadowColor=c;octx.shadowBlur=16;
+  octx.beginPath();
+  var p=[loc.topLeftCorner,loc.topRightCorner,loc.bottomRightCorner,loc.bottomLeftCorner];
+  octx.moveTo(p[0].x,p[0].y);for(var i=1;i<p.length;i++)octx.lineTo(p[i].x,p[i].y);
+  octx.closePath();octx.stroke();octx.shadowBlur=0;
+  octx.fillStyle=c;p.forEach(function(pt){octx.beginPath();octx.arc(pt.x,pt.y,6,0,Math.PI*2);octx.fill();});
+}
+function processCode(code){
+  if(!code)return;
+  if(scanned.has(code)){scanned.get(code).count++;showToast('duplicate','TEKRAR',code);vibrate(50);updateScanBar();return;}
+  var status=imported.size===0?'notfound':(imported.has(code)?'found':'notfound');
+  var now=new Date();
+  var time=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+  scanned.set(code,{status:status,time:time,count:1});
+  if(status==='found'){showToast('found','BULUNDU',code);vibrate(80);}
+  else{showToast('notfound','LISTEDE YOK',code);vibrate([100,50,100]);}
+  updateScanBar();addItem(code,status,time);
+}
+var toastTimer=null;
+function showToast(type,lbl,code){
+  var t=document.getElementById('toast');t.className='toast show '+type;
+  document.getElementById('toastLbl').textContent=lbl;
+  document.getElementById('toastCode').textContent=code.length>44?code.slice(0,42)+'...':code;
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show');},2000);
+}
+function vibrate(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+function updateStats(){
+  var f=0,m=0,d=0;
+  scanned.forEach(function(v){if(v.status==='found')f++;else if(v.status==='notfound')m++;if(v.count>1)d+=(v.count-1);});
+  document.getElementById('stTotal').textContent=imported.size;document.getElementById('stFound').textContent=f;
+  document.getElementById('stMissing').textContent=m;document.getElementById('stDupe').textContent=d;
+  var pct=imported.size>0?Math.round(f/imported.size*100):0;
+  document.getElementById('progFill').style.width=pct+'%';document.getElementById('progText').textContent=f+' / '+imported.size;
+}
+function updateScanBar(){
+  var f=0,m=0,d=0;
+  scanned.forEach(function(v){if(v.status==='found')f++;else if(v.status==='notfound')m++;if(v.count>1)d+=(v.count-1);});
+  document.getElementById('ssFound').textContent=f;document.getElementById('ssMissing').textContent=m;document.getElementById('ssDupe').textContent=d;
+}
+function addItem(code,status,time){
+  var list=document.getElementById('scanItems');var empty=list.querySelector('.empty-msg');if(empty)empty.remove();
+  var lbl=status==='found'?'OK':status==='notfound'?'YOK':'2x';
+  var div=document.createElement('div');div.className='sitem '+status;
+  div.innerHTML='<div class="sico '+status+'">'+lbl+'</div>'+'<div class="scode" title="'+code+'">'+(code.length>36?code.slice(0,34)+'...':code)+'</div>'+'<div class="stime">'+time+'</div>';
+  list.insertBefore(div,list.firstChild);
+  var items=list.querySelectorAll('.sitem');if(items.length>200)items[items.length-1].remove();
+}
+function clearScanned(){if(!confirm('Taranan kodlar silinsin mi?'))return;scanned.clear();document.getElementById('scanItems').innerHTML='<div class="empty-msg">Henuz kod taranmadi.</div>';updateStats();}
+function clearAll(){if(!confirm('Her sey silinecek?'))return;imported.clear();scanned.clear();document.getElementById('importOk').style.display='none';var b=document.getElementById('statusBadge');b.textContent='LISTE YOK';b.className='badge';document.getElementById('scanItems').innerHTML='<div class="empty-msg">Henuz kod taranmadi.</div>';updateStats();}
+function exportCSV(){
+  if(scanned.size===0){alert('Taranan kod yok!');return;}
+  var csv='Karekod,Durum,Saat,Tekrar\n';
+  scanned.forEach(function(v,k){var s=v.status==='found'?'Bulundu':v.status==='notfound'?'Listede Yok':'Tekrar';csv+='"'+k+'","'+s+'","'+v.time+'",'+v.count+'\n';});
+  dl(new Blob([csv],{type:'text/csv;charset=utf-8'}),'sayim.csv');
+}
+function exportHTML(){
+  if(scanned.size===0){alert('Taranan kod yok!');return;}
+  var rows='';
+  scanned.forEach(function(v,k){
+    var bg=v.status==='found'?'#e8f5e9':v.status==='notfound'?'#ffebee':'#fff8e1';
+    var clr=v.status==='found'?'#2e7d32':v.status==='notfound'?'#c62828':'#f57f17';
+    var lbl=v.status==='found'?'BULUNDU':v.status==='notfound'?'LISTEDE YOK':'TEKRAR';
+    rows+='<tr style="background:'+bg+'"><td>'+k+'</td><td style="color:'+clr+';font-weight:600">'+lbl+'</td><td>'+v.time+'</td><td>'+v.count+'</td></tr>';
+  });
+  var f=0,m=0;scanned.forEach(function(v){if(v.status==='found')f++;else if(v.status==='notfound')m++;});
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Sayim Raporu</title><style>body{font-family:Arial;padding:20px}h2{color:#1a237e}table{width:100%;border-collapse:collapse}th{background:#1a237e;color:#fff;padding:8px;text-align:left}td{padding:8px;font-size:12px;font-family:monospace;border-bottom:1px solid #eee}</style></head><body><h2>Ilac Stok Sayim Raporu</h2><p>Bulunan: <b>'+f+'</b> | Listede Yok: <b>'+m+'</b></p><table><tr><th>Karekod</th><th>Durum</th><th>Saat</th><th>Tekrar</th></tr>'+rows+'</table></body></html>';
+  dl(new Blob([html],{type:'text/html;charset=utf-8'}),'sayim_raporu.html');
+}
+function dl(blob,name){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);}
+</script>
+</body>
+</html>
